@@ -9,8 +9,7 @@ public class MainActivity extends JPanel implements Runnable{
 	public static final int HEIGHT = 600;
 	public JFrame window;
 	private Board board;
-	//public static int speed = 60;
-	public static final double ns = 1000000000.0 / 60.0;
+	public static final double ns = 1000000000.0 / 60.0;	// nanoseconds conversion 
 
 	
 	public MainActivity(){
