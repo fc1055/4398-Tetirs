@@ -15,7 +15,8 @@ class Board extends JPanel
 	public static final int BLOCK_SIZE = 24;
 	public static final int BOTTOM = 510;
 	public static final int LEFT_BORDER = 100;
-	public static final int RIGHT_BORDER = 240;
+	public static final int RIGHT_BORDER = 340;
+	public static final int MIDDLE = 220;
 	public static final int TOP = 30;
 	public static final int HOLD_X = 424;
 	public static final int HOLD_Y = 64;
@@ -30,21 +31,21 @@ class Board extends JPanel
 	private int row; 
 	private int col;  
 	private int numRotations;
-	private int topOfFallenPieces;
 	private boolean firstHold;
 	private boolean printHold;
+	private boolean collision;
 	
 	private Queue<Tetris> blockQueue = new LinkedList<Tetris>();
+
 	
 	
 	// constructor
 	public Board() 
 	{ 
-		col = 190;
-		row = 32;
 		numRotations = 0;
-		board = new int[10][20];
+		board = new int[20][10];
 		firstHold = true;
+		
 		
 		newShape();
 		setImage();
@@ -84,8 +85,20 @@ class Board extends JPanel
 
 	// motion control methods
 	public void rotate(){
+		// get the rotation pattern
 		rotation = t.getState(numRotations%t.states.length);
 		numRotations++;
+		
+		// if after rotating, the block goes past the right border, move the block left
+		if(col + rotation[0].length * BLOCK_SIZE > RIGHT_BORDER){
+			col = col - BLOCK_SIZE;
+		}
+		// if after rotating, the block goes past the bottom border move it up
+		// the I shaped block has an error still with this logic, it can go past
+		// the bottom border, if you rotate after it hits. Not sure how to fix that.
+		if(row + rotation.length * BLOCK_SIZE > BOTTOM){
+			row = row - BLOCK_SIZE;
+		}
 	}
 	
 	public void speedDown(){
@@ -97,24 +110,30 @@ class Board extends JPanel
 	}
 	
 	public void drop(){
-		if(isValidAndEmpty(t, col, row + topOfFallenPieces, numRotations))
-			row = BOTTOM;
+		row = BOTTOM - rotation.length * BLOCK_SIZE;
 	}
+	
 	public void moveRight(){
-		if(isValidAndEmpty(t, col + 15, row, numRotations))
-			col = col + 15;
+		// check to make sure the block doesn't go past the right border
+		if(!(col + 1 + rotation[0].length * BLOCK_SIZE > RIGHT_BORDER))
+			col = col + 24;
 		
 	}
 	public void moveLeft() {
-		if(isValidAndEmpty(t, col - 15, row, numRotations))
-				col = col - 15;
+		// check to make sure the block doesn't go past the left border
+		if(!(col - 12 < LEFT_BORDER))
+				col = col - 24;
 	}
 	
 	public void hold(){
+		// if you've never called hold before put current block
+		// into hold
 		if(firstHold){
 			firstHold = false;
 			holdBlock = t;
 		}
+		// else if you have called hold before, swap current block
+		// with hold block
 		else{
 			Tetris tempBlock;
 			
@@ -130,13 +149,33 @@ class Board extends JPanel
 	
 	// resets the y position of the block so it stays on the screen
 	public void updatePosition(){
-		if(row <= BOTTOM)
-			row += 1;
-		else{
-			row = 32;
-			repaint();
+		
+		if(collision){
+			// takes the location of the block relative to 10X20 board
+			// and prints it to the board[][] array
+			for(int y = 0; y < rotation.length; y++)
+				for(int x = 0; x < rotation[y].length; x++)
+					if(rotation[y][x] != 0)
+						board[(row - TOP)/BLOCK_SIZE + y][(col - LEFT_BORDER)/BLOCK_SIZE + x] = 1;
+					
+
 			newShape();
 		}
+		
+		//Checks if the block has hit the bottom -- would like to instead use
+		//if(isValidAndEmpty(col, row) to check if it his the bottom
+		// and also if it hits a printed block
+		if(!(row + rotation.length * BLOCK_SIZE > BOTTOM)){
+			row++;
+		}
+		// uncomment to test  isValidAndEmpty()
+		//if(isValidAndEmpty(col, row)){
+		//	row++;
+		//}
+		else{
+			collision = true;
+		}
+
 	}
 	
 	
@@ -147,9 +186,12 @@ class Board extends JPanel
 			blockQueue.add(Tetris.randomOne());
 		}
 		
+		row = TOP;
+		col = MIDDLE;
 		t = blockQueue.remove();
 		rotation = t.getShape();
 		numRotations = 0;
+		collision = false;
 	}
 	
 	// Printing methods
@@ -161,18 +203,29 @@ class Board extends JPanel
 		printShape(col, row, g, t.getColor(), rotation);
 		printShape(UP_NEXT_X, UP_NEXT_Y, g, blockQueue.peek().getColor(), blockQueue.peek().getShape());
 		paintBoard(g);
-		
+		paintDroppedBlocks(g, t.getColor());
+			
 		if(printHold){
 			printShape(HOLD_X, HOLD_Y, g, holdBlock.getColor(), holdBlock.getShape());
 		}
 		
 	}
 	
+	// runs through a 10X20 2D array, everywhere there is a 1, a tile is printed
+	public void paintDroppedBlocks(Graphics g, int color){
+		for(int y = 0; y < board.length; y++)
+			for(int x = 0; x < board[y].length; x++)
+				if(isOccupied(y,x)){
+					g.drawImage(tiles.getSubimage(color,0,BLOCK_SIZE,BLOCK_SIZE), x * BLOCK_SIZE + LEFT_BORDER,
+						    y * BLOCK_SIZE + TOP, null);
+				}
+
+	}
 	
 	//paints the simple lines of the gameplay board
 	private void paintBoard(Graphics g){
 		// prints the board lines
-		g.drawRect(LEFT_BORDER, TOP, RIGHT_BORDER, BOTTOM);
+		g.drawRect(100, 30, 240, 480);
 		
 		g.drawString("Hold", 420, 40);
 		g.drawRect(400, 50, 144, 120);
@@ -198,30 +251,26 @@ class Board extends JPanel
 	}
 	
 	
-	
-	
+
 	// Collision Detection methods
 	//You can for example use a 2D array with Boolean or integer values that represent presence of a square on a location: int[][] squares = new int[20][10];
 
-	private static int COL_COUNT = 10;
-	private static int ROW_COUNT = 20;
-
 	//The following method finds the collision
-	public boolean isValidAndEmpty(Tetris type, int x, int y, int rotation)
+	public boolean isValidAndEmpty(int x, int y)
 	{
 
-	        //Ensure the piece is in a valid column.
-	        if(x < -type.getLeftInset(rotation) ||
-	            x + type.getDimension() - type.getRightInset(rotation) >= COL_COUNT)
-	        {
-	            return false;
-	        }
-
-	        //Ensure the piece is in a valid row.
-	        if(y < -type.getTopInset(rotation) ||y + type.getDimension() -type.getBottomInset(rotation) >= ROW_COUNT)
-	        {
-	            return false;
-	        }
+	      // //Ensure the piece is in a valid column.
+	      // if(x < -type.getLeftInset(rotation) ||
+	      //     x + type.getDimension() - type.getRightInset(rotation) >= COL_COUNT)
+	      // {
+	      //     return false;
+	      // }
+        
+	       //Ensure the piece is in a valid row.
+	       if(!(row + rotation.length * BLOCK_SIZE > BOTTOM))
+	       {
+	           return true;
+	       }
 
 
 	         /*
@@ -229,21 +278,16 @@ class Board extends JPanel
 	         * with an existing tile.
 	         * Note: It's fine to do this even though it allows for wrapping * because we've already
 	         * checked to make sure the piece is in a valid location.*/
-	        for(int col = 0; col < type.getDimension(); col++)
-	{
-	            for(int row = 0; row < type.getDimension(); row++)
-	            {
-	            if(type.isTile(col, row, rotation) &&
-	                    isOccupied(x + col, y + row))
-	            {
-	                return false;
+	        for(int col = 0; col < rotation.length; col++){
+	            for(int row = 0; row < rotation[col].length; row++){
+	            	if((rotation[col][row] != 0) && isOccupied(x + col, y + row)){
+	            		return false;
+	            	}
+	            }
 
 	        }
-	}
-
-	}
-	                return true;
-
+	        return true;
+	        
 	}
 
 	private boolean isOccupied(int i, int j) {
@@ -253,5 +297,3 @@ class Board extends JPanel
 				return false;
 	}
 	
-
-}
