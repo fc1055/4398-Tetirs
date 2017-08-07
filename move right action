@@ -1,0 +1,9 @@
+ public void moveRightAction() {            
+   //will move back to left if find the block is off the edge when move to right       
+  tetromino.moveRight();            
+  if(outOfBounds()||coincide()) 
+  {
+    //off the edge                
+    tetromino.moveLeft();           
+  }
+  }
